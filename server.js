@@ -1,7 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
+const path = require('path');
 const puppeteer = require('puppeteer-core');
-const chromium = require('@sparticuz/chromium');
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
@@ -10,9 +10,19 @@ require('dotenv').config();
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/', (req, res) => res.redirect('/login.html'));
+
+// Nạp @sparticuz/chromium bằng dynamic import (chạy được cả khi gói là CJS hoặc ESM)
+let chromiumCache = null;
+async function getChromium() {
+    if (!chromiumCache) {
+        const mod = await import('@sparticuz/chromium');
+        chromiumCache = mod.default || mod;
+    }
+    return chromiumCache;
+}
 
 // ================= KẾT NỐI MONGODB (tối ưu cho serverless) =================
 let dbPromise = null;
@@ -198,11 +208,12 @@ app.post('/api/scan', auth, async (req, res) => {
 
         console.log(`\n[+] ${user.username} đang quét PIN: ${pin}...`);
 
+        const chromium = await getChromium();
         browser = await puppeteer.launch({
-            args: chromium.args,
-            defaultViewport: chromium.defaultViewport,
+            args: puppeteer.defaultArgs({ args: chromium.args, headless: 'shell' }),
+            defaultViewport: { width: 1280, height: 800 },
             executablePath: await chromium.executablePath(),
-            headless: chromium.headless ?? true
+            headless: 'shell'
         });
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
