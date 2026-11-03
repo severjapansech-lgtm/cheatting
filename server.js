@@ -16,7 +16,7 @@ app.get('/', (req, res) => res.redirect('/login.html'));
 
 // ================= KẾT NỐI MONGODB =================
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('✅ Đã kết nối MongoDB đám mây'))
+    .then(() => console.log('✅ Đã kết nối MongoDB Atlas thành công!'))
     .catch(err => console.error('❌ Lỗi kết nối MongoDB:', err.message));
 
 const UserSchema = new mongoose.Schema({
@@ -39,30 +39,39 @@ const PaymentSchema = new mongoose.Schema({
 });
 const Payment = mongoose.model('Payment', PaymentSchema);
 
-// Tự động tạo Admin ban đầu
+// Tự động tạo Admin
 async function initAdmin() {
-    const admin = await User.findOne({ username: 'bindev' });
-    if (!admin) {
-        const salt = await bcrypt.genSalt(10);
-        const hashPass = await bcrypt.hash('DOBAONGOC01032010@', salt);
-        await User.create({ username: 'bindev', password: hashPass, role: 'admin' });
-        console.log('👑 Đã tạo tài khoản Admin: bindev / DOBAONGOC01032010@');
+    try {
+        const admin = await User.findOne({ username: 'bindev' });
+        if (!admin) {
+            const salt = await bcrypt.genSalt(10);
+            const hashPass = await bcrypt.hash('DOBAONGOC01032010@', salt);
+            await User.create({ username: 'bindev', password: hashPass, role: 'admin' });
+            console.log('👑 Đã khởi tạo tài khoản Admin mặc định thành công!');
+        }
+    } catch (e) {
+        console.error('Lỗi khởi tạo Admin:', e.message);
     }
 }
 initAdmin();
 
 const getToday = () => new Date().toISOString().split('T')[0];
 
+// Khắc phục hoàn toàn lỗi phân tách chuỗi sập server
 const auth = (req, res, next) => {
     const authHeader = req.header('Authorization');
-    const token = authHeader && authHeader.split(' ')[1];
-    if (!token) return res.status(401).json({ error: 'Vui lòng đăng nhập' });
+    if (!authHeader) return res.status(401).json({ error: 'Vui lòng đăng nhập' });
+    
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2) return res.status(401).json({ error: 'Định dạng token không hợp lệ' });
+    
+    const token = parts[1];
     try {
         const verified = jwt.verify(token, process.env.JWT_SECRET);
         req.user = verified;
         next();
     } catch (e) { 
-        res.status(401).json({ error: 'Phiên đăng nhập hết hạn' }); 
+        res.status(401).json({ error: 'Phiên đăng nhập hết hạn hoặc không hợp lệ' }); 
     }
 };
 
@@ -75,44 +84,60 @@ const KNOWN_ANSWERS = {
 
 // ================= API AUTH & USER =================
 app.post('/api/register', async (req, res) => {
-    const { username, password } = req.body;
-    if (!username || !password) return res.status(400).json({ error: 'Nhập thiếu thông tin' });
-    const exists = await User.findOne({ username });
-    if (exists) return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại!' });
+    try {
+        const { username, password } = req.body;
+        if (!username || !password) return res.status(400).json({ error: 'Nhập thiếu thông tin' });
+        const exists = await User.findOne({ username });
+        if (exists) return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại!' });
 
-    const salt = await bcrypt.genSalt(10);
-    const hashPass = await bcrypt.hash(password, salt);
-    await User.create({ username, password: hashPass });
-    res.json({ success: true, message: 'Tạo tài khoản thành công!' });
+        const salt = await bcrypt.genSalt(10);
+        const hashPass = await bcrypt.hash(password, salt);
+        await User.create({ username, password: hashPass });
+        res.json({ success: true, message: 'Tạo tài khoản thành công!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/login', async (req, res) => {
-    const { username, password } = req.body;
-    const user = await User.findOne({ username });
-    if (!user) return res.status(400).json({ error: 'Tài khoản không tồn tại' });
-    
-    const validPass = await bcrypt.compare(password, user.password);
-    if (!validPass) return res.status(400).json({ error: 'Sai mật khẩu' });
-    
-    const token = jwt.sign({ _id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET);
-    res.json({ token, role: user.role, username: user.username });
+    try {
+        const { username, password } = req.body;
+        const user = await User.findOne({ username });
+        if (!user) return res.status(400).json({ error: 'Tài khoản không tồn tại' });
+        
+        const validPass = await bcrypt.compare(password, user.password);
+        if (!validPass) return res.status(400).json({ error: 'Sai mật khẩu' });
+        
+        const token = jwt.sign({ _id: user._id, username: user.username, role: user.role }, process.env.JWT_SECRET);
+        res.json({ token, role: user.role, username: user.username });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/me', auth, async (req, res) => {
-    const user = await User.findById(req.user._id);
-    const limits = { free: 5, '50k': 15, '100k': 30, '200k': 999999 };
-    res.json({
-        username: user.username,
-        plan: user.plan,
-        dailyUses: user.dailyUses,
-        maxUses: limits[user.plan]
-    });
+    try {
+        const user = await User.findById(req.user._id);
+        const limits = { free: 5, '50k': 15, '100k': 30, '200k': 999999 };
+        res.json({
+            username: user.username,
+            plan: user.plan,
+            dailyUses: user.dailyUses,
+            maxUses: limits[user.plan] || 5
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.post('/api/payment/request', auth, async (req, res) => {
-    const { plan, amount } = req.body;
-    await Payment.create({ username: req.user.username, plan, amount });
-    res.json({ success: true, message: 'Đã gửi yêu cầu. Chờ Admin duyệt!' });
+    try {
+        const { plan, amount } = req.body;
+        await Payment.create({ username: req.user.username, plan, amount });
+        res.json({ success: true, message: 'Đã gửi yêu cầu. Chờ Admin duyệt!' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // ================= API QUÉT GAME =================
@@ -129,7 +154,7 @@ app.post('/api/scan', auth, async (req, res) => {
     const limits = { free: 5, '50k': 15, '100k': 30, '200k': 999999 };
     if (user.plan !== '200k' && user.planExpiry && user.planExpiry < new Date()) user.plan = 'free';
     
-    if (user.dailyUses >= limits[user.plan]) {
+    if (user.dailyUses >= (limits[user.plan] || 5)) {
         return res.status(403).json({ error: 'Đã hết lượt sử dụng hôm nay. Vui lòng nâng cấp!' });
     }
 
@@ -234,32 +259,29 @@ app.post('/api/scan', auth, async (req, res) => {
             try {
                 const payload = {
                     contents: [{ parts: [{ text: JSON.stringify(questionsToAsk) }] }],
-                    systemInstruction: { 
-                        parts: [{ 
-                            text: `Bạn là một trợ lý học tập chuyên môn cao về chương trình sách giáo khoa lớp 11 tại Việt Nam. Tôi gửi kèm đây một tệp JSON chứa các câu hỏi trắc nghiệm ôn tập.
+systemInstruction: {
+parts: [{
+text: `Bạn là một trợ lý học tập chuyên môn cao về chương trình sách giáo khoa lớp 11 tại Việt Nam. Tôi gửi kèm đây một tệp JSON chứa các câu hỏi trắc nghiệm ôn tập.
 Hãy thực hiện các yêu cầu sau một cách thầm lặng:
 1. Đọc và phân tích kỹ nội dung từng câu hỏi trong tệp JSON.
 2. Đối chiếu câu hỏi và các đáp án với chuẩn kiến thức trong chương trình SGK lớp 11.
 3. Kiểm tra tính chính xác của đáp án hiện tại. Nếu phát hiện câu nào có đáp án sai hoặc chưa tối ưu, hãy tự động chỉnh sửa lại cho đúng.
 LƯU Ý QUAN TRỌNG: Bạn BẮT BUỘC phải trả về ĐÚNG MỘT chuỗi JSON duy nhất theo cấu trúc sau (KHÔNG kèm lời giải thích, KHÔNG markdown):
-{"answers": {"<questionId>": "<optionId>"}}`
-                        }]
+{"answers": {"": ""}}`
+}]
 },
 generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
-};
-const aiRes = await fetch(https://googleapis.com{process.env.GEMINI_API_KEY}, {
+};const aiRes = await fetch(https://googleapis.com{process.env.GEMINI_API_KEY}, {
 method: 'POST',
 headers: { 'Content-Type': 'application/json' },
 body: JSON.stringify(payload)
 });
-const aiData = await aiRes.json();
-if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
+const aiData = await aiRes.json();if (aiData.candidates?.[0]?.content?.parts?.[0]?.text) {
 const aiAnswers = JSON.parse(aiData.candidates[0].content.parts[0].text).answers || {};
 Object.assign(finalAnswers, aiAnswers);
 }
 } catch (e) { console.error('Lỗi kết nối Gemini AI:', e); }
-}
-for (const [id, q] of Object.entries(questionsObj)) {
+}for (const [id, q] of Object.entries(questionsObj)) {
 const ansId = finalAnswers[id];
 if (ansId) {
 const opt = (q.structure.options || []).find(o => o.id === ansId);
@@ -267,11 +289,9 @@ q.structure.correctAnswers = opt ? [opt] : [{ text: ansId }];
 } else {
 q.structure.correctAnswers = [];
 }
-}
-user.dailyUses += 1;
+}user.dailyUses += 1;
 await user.save();
-res.json({ success: true, questions: Object.values(questionsObj) });
-} catch (error) {
+res.json({ success: true, questions: Object.values(questionsObj) });} catch (error) {
 if (browser) await browser.close();
 res.status(500).json({ error: error.message });
 }
@@ -284,9 +304,13 @@ error: 'Chức năng Spawn Bot chạy ngầm duy trì phòng không được h�
 });
 // ================= API ADMIN =================
 const adminAuth = async (req, res, next) => {
+try {
 const user = await User.findById(req.user._id);
-if (user.role !== 'admin') return res.status(403).json({ error: 'Không có quyền truy cập' });
+if (!user || user.role !== 'admin') return res.status(403).json({ error: 'Không có quyền truy cập' });
 next();
+} catch (e) {
+res.status(500).json({ error: e.message });
+}
 };
 app.get('/api/admin/users', auth, adminAuth, async (req, res) => {
 const users = await User.find({}, '-password');
@@ -297,6 +321,7 @@ const payments = await Payment.find({ status: 'pending' });
 res.json(payments);
 });
 app.post('/api/admin/approve', auth, adminAuth, async (req, res) => {
+try {
 const { paymentId } = req.body;
 const payment = await Payment.findById(paymentId);
 if (!payment) return res.status(404).json({ error: 'Không tìm thấy hóa đơn' });
@@ -312,9 +337,11 @@ user.planExpiry = expiry;
 await user.save();
 }
 res.json({ success: true, message: 'Đã phê duyệt nâng cấp thành công!' });
+} catch (err) {
+res.status(500).json({ error: err.message });
+}
 });
-// Lắng nghe cổng kết nối động được cấp phát tự động bởi nền tảng máy chủ lưu trữ trực tuyến
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-console.log(🚀 Server đang vận hành ổn định tại port: ${PORT});
+console.log(🚀 Server đang vận hành trên port: ${PORT});
 });
