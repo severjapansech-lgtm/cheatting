@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Admin - Wayground Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; }</style>
+</head>
+<body class="text-white p-8">
+    <div class="max-w-6xl mx-auto">
+        <div class="flex justify-between items-center mb-10 border-b border-slate-700 pb-4">
+            <h1 class="text-3xl font-bold text-red-400">Trang Quản Trị Admin</h1>
+            <button onclick="logout()" class="text-red-400 hover:text-red-300">Đăng xuất</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-yellow-400">Đơn Chờ Duyệt</h2>
+                <div id="paymentsList" class="space-y-3"></div>
+            </div>
+
+            <div class="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                <h2 class="text-xl font-bold mb-4 text-blue-400">Danh Sách Người Dùng</h2>
+                <div class="overflow-y-auto max-h-96">
+                    <table class="w-full text-left text-sm">
+                        <thead class="text-slate-400 border-b border-slate-700">
+                            <tr>
+                                <th class="p-2">Username</th>
+                                <th class="p-2">Gói</th>
+                                <th class="p-2">Lượt dùng</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersList"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token || localStorage.getItem('role') !== 'admin') window.location.href = '/login.html';
+
+        async function loadData() {
+            try {
+                const uRes = await fetch('/api/admin/users', { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!uRes.ok) return logout(); 
+                const users = await uRes.json();
+                document.getElementById('usersList').innerHTML = users.map(u => `
+                    <tr class="border-b border-slate-700 hover:bg-slate-700/50">
+                        <td class="p-2 font-bold">${u.username}</td>
+                        <td class="p-2"><span class="bg-purple-900 px-2 py-1 rounded text-xs uppercase">${u.plan}</span></td>
+                        <td class="p-2 text-slate-400">${u.dailyUses}</td>
+                    </tr>
+                `).join('');
+
+                const pRes = await fetch('/api/admin/payments', { headers: { 'Authorization': `Bearer ${token}` } });
+                const payments = await pRes.json();
+                const pList = document.getElementById('paymentsList');
+                if (payments.length === 0) pList.innerHTML = '<p class="text-slate-500">Không có đơn nào.</p>';
+                else {
+                    pList.innerHTML = payments.map(p => `
+                        <div class="bg-slate-900 p-4 rounded-lg flex justify-between items-center border border-slate-700">
+                            <div>
+                                <div class="font-bold">${p.username}</div>
+                                <div class="text-sm text-green-400">Gói: ${p.plan} - ${p.amount.toLocaleString()}đ</div>
+                            </div>
+                            <button onclick="approve('${p._id}')" class="bg-green-600 hover:bg-green-500 px-4 py-2 rounded text-sm font-bold">Duyệt</button>
+                        </div>
+                    `).join('');
+                }
+            } catch(e) { console.error(e); }
+        }
+        loadData();
+
+        async function approve(id) {
+            const res = await fetch('/api/admin/approve', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ paymentId: id })
+            });
+            if (res.ok) {
+                alert('Đã duyệt đơn thành công!');
+                loadData();
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/login.html';
+        }
+    </script>
+</body>
+</html>

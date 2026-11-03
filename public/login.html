@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Đăng Nhập - Wayground Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>body { font-family: 'Plus Jakarta Sans', sans-serif; background: #0f172a; }</style>
+</head>
+<body class="flex items-center justify-center h-screen text-white">
+    <div class="bg-slate-800 p-8 rounded-2xl shadow-2xl w-96 border border-slate-700">
+        
+        <div id="loginSection">
+            <h2 class="text-3xl font-bold text-center text-purple-400 mb-6">Đăng Nhập</h2>
+            <form id="loginForm">
+                <input type="text" id="loginUser" placeholder="Tên đăng nhập" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-4 text-white focus:outline-none focus:border-purple-500" required>
+                <input type="password" id="loginPass" placeholder="Mật khẩu" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-6 text-white focus:outline-none focus:border-purple-500" required>
+                <button type="submit" class="w-full bg-purple-600 hover:bg-purple-700 py-3 rounded-lg font-bold transition">Đăng Nhập</button>
+            </form>
+            <p class="text-center mt-4 text-sm text-slate-400">Chưa có tài khoản? <a href="#" onclick="toggleForm('register')" class="text-purple-400 font-bold hover:underline">Đăng ký ngay</a></p>
+        </div>
+
+        <div id="registerSection" class="hidden">
+            <h2 class="text-3xl font-bold text-center text-green-400 mb-6">Đăng Ký</h2>
+            <form id="registerForm">
+                <input type="text" id="regUser" placeholder="Tên đăng nhập mới" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-4 text-white focus:outline-none focus:border-green-500" required>
+                <input type="password" id="regPass" placeholder="Mật khẩu" class="w-full bg-slate-900 border border-slate-700 p-3 rounded-lg mb-6 text-white focus:outline-none focus:border-green-500" required>
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 py-3 rounded-lg font-bold transition">Tạo Tài Khoản</button>
+            </form>
+            <p class="text-center mt-4 text-sm text-slate-400">Đã có tài khoản? <a href="#" onclick="toggleForm('login')" class="text-green-400 font-bold hover:underline">Đăng nhập</a></p>
+        </div>
+
+        <p id="error" class="text-red-500 text-center mt-4 text-sm hidden"></p>
+        <p id="success" class="text-green-500 text-center mt-4 text-sm hidden"></p>
+    </div>
+
+    <script>
+        function toggleForm(type) {
+            document.getElementById('error').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            if (type === 'register') {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('registerSection').classList.remove('hidden');
+            } else {
+                document.getElementById('registerSection').classList.add('hidden');
+                document.getElementById('loginSection').classList.remove('hidden');
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault(); 
+            const u = document.getElementById('loginUser').value;
+            const p = document.getElementById('loginPass').value;
+            const err = document.getElementById('error');
+            err.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('role', data.role);
+                    localStorage.setItem('username', data.username);
+                    window.location.href = data.role === 'admin' ? '/admin.html' : '/user.html';
+                } else {
+                    err.innerText = data.error || 'Đăng nhập thất bại';
+                    err.classList.remove('hidden');
+                }
+            } catch (error) {
+                err.innerText = 'Lỗi kết nối đến server!';
+                err.classList.remove('hidden');
+            }
+        });
+
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const u = document.getElementById('regUser').value;
+            const p = document.getElementById('regPass').value;
+            const err = document.getElementById('error');
+            const suc = document.getElementById('success');
+            err.classList.add('hidden');
+            suc.classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username: u, password: p})
+                });
+                const data = await res.json();
+                
+                if (res.ok) {
+                    suc.innerText = data.message + ' Hãy đăng nhập.';
+                    suc.classList.remove('hidden');
+                    setTimeout(() => toggleForm('login'), 1500);
+                } else {
+                    err.innerText = data.error;
+                    err.classList.remove('hidden');
+                }
+            } catch (error) {
+                err.innerText = 'Lỗi kết nối đến server!';
+                err.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
