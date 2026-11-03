@@ -278,7 +278,7 @@ res.status(500).json({ error: error.message });
 }
 });
 // ================= API SPAWN BOT =================
-// Từ chối phản hồi vì cấu hình Serverless của Vercel tự động ngắt và đóng băng các tiến trình trình duyệt chạy ngầm kéo dài
+// Từ chối phản hồi vì cấu hình Serverless của Vercel tự động ngắt các tiến trình chạy ngầm kéo dài
 app.post('/api/spawn', auth, (req, res) => {
 res.status(400).json({
 error: 'Chức năng Spawn Bot chạy ngầm duy trì phòng không được hỗ trợ trên môi trường Vercel Serverless do giới hạn đóng băng tài nguyên ngắn hạn. Hãy chuyển đổi hệ thống sang nền tảng VPS hoặc Koyeb nếu bắt buộc sử dụng bot liên tục.'
