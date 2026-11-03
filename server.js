@@ -136,7 +136,6 @@ app.post('/api/scan', auth, async (req, res) => {
     console.log(`\n[+] ${user.username} đang quét PIN: ${pin}...`);
     let browser;
     try {
-        // Tự động tìm kiếm môi trường chạy để trỏ đường dẫn Chromium Linux ảo trên Vercel
         browser = await puppeteer.launch({ 
             args: chromium.args,
             defaultViewport: chromium.defaultViewport,
@@ -243,8 +242,8 @@ Hãy thực hiện các yêu cầu sau một cách thầm lặng:
 2. Đối chiếu câu hỏi và các đáp án với chuẩn kiến thức trong chương trình SGK lớp 11.
 3. Kiểm tra tính chính xác của đáp án hiện tại. Nếu phát hiện câu nào có đáp án sai hoặc chưa tối ưu, hãy tự động chỉnh sửa lại cho đúng.
 LƯU Ý QUAN TRỌNG: Bạn BẮT BUỘC phải trả về ĐÚNG MỘT chuỗi JSON duy nhất theo cấu trúc sau (KHÔNG kèm lời giải thích, KHÔNG markdown):
-{"answers": {"": ""}}`
-}]
+{"answers": {"<questionId>": "<optionId>"}}`
+                        }]
 },
 generationConfig: { responseMimeType: "application/json", temperature: 0.1 }
 };
@@ -278,7 +277,6 @@ res.status(500).json({ error: error.message });
 }
 });
 // ================= API SPAWN BOT =================
-// Từ chối phản hồi vì cấu hình Serverless của Vercel tự động ngắt các tiến trình chạy ngầm kéo dài
 app.post('/api/spawn', auth, (req, res) => {
 res.status(400).json({
 error: 'Chức năng Spawn Bot chạy ngầm duy trì phòng không được hỗ trợ trên môi trường Vercel Serverless do giới hạn đóng băng tài nguyên ngắn hạn. Hãy chuyển đổi hệ thống sang nền tảng VPS hoặc Koyeb nếu bắt buộc sử dụng bot liên tục.'
