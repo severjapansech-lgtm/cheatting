@@ -5,7 +5,10 @@
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
-        "includeFiles": ["node_modules/@sparticuz/chromium/bin/**"]
+        "includeFiles": [
+          "public/**",
+          "node_modules/@sparticuz/chromium/bin/**"
+        ]
       }
     }
   ],
